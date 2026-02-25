@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Desmos CL Prompt → Code</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Desmos Activity Builder · Computation Layer</h1>
+      <p class="subtitle">Prompt → CL code for <a href="https://cl.desmos.com/" target="_blank" rel="noopener">Activity Builder</a></p>
+      <span class="header-byline">by Bob Kelly</span>
+    </header>
+
+    <main class="split">
+      <aside class="left-panel">
+        <section class="slides-section">
+          <h2>Slides</h2>
+          <div class="project-actions">
+            <button type="button" id="saveProjectBtn" title="Save slides, code, and prompt">Save project</button>
+            <select id="openProjectSelect" title="Open a saved project">
+              <option value="">Open project…</option>
+            </select>
+          </div>
+          <div class="slides-row">
+            <div class="slides-track" id="slidesTrack" role="list">
+              <article class="slide-card" data-slide-index="0" data-slide-id="slide-0" draggable="true" role="listitem">
+                <div class="slide-thumb">Slide 1</div>
+              </article>
+            </div>
+            <button type="button" class="add-slide" id="addSlide" title="Add slide" aria-label="Add slide">+</button>
+          </div>
+        </section>
+        <section class="prompt-section">
+          <h2>Prompt</h2>
+          <!-- Paste your combined ASCII art inside the <pre> below. Slashes and backslashes are fine. -->
+          <template id="dezzy-ascii"><pre>
+             ++++           ++++   
+            +++++++++++++++++++++  
+            +++++++++++++++++++++  
+           +++++++++++++++++++++++         ____  ____  ____  ____  _  _ 
+           ++++++++++++++++++++++++       (  _ \( ___)(_   )(_   )( \/ )  
+          +++++++++++++++++++++++++        )(_) ))__)  / /_  / /_  \  /  
+          +++++  +++     +++  +++++       (____/(____)(____)(____) (__) 
+          ++++  ++++     ++++  ++++
+           ++++  +++     +++  ++++ 
+            ++++++         ++++++  
+               +++++++++++++++
+</pre></template>
+          <textarea
+            id="promptInput"
+            class="prompt-input"
+            placeholder=""
+            rows="8"
+          ></textarea>
+          <div id="dezzyThinking" class="dezzy-thinking" aria-live="polite" aria-hidden="true" hidden>
+            Dezzy is thinking<span class="dezzy-ellipsis">...</span>
+          </div>
+          <div class="prompt-actions">
+            <button type="button" class="generate-btn" id="generateBtn">Generate CL code</button>
+            <button type="button" class="ask-dezzy-btn" id="askDezzyBtn">Ask Dezzy</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="right-panel">
+        <h2>Code output</h2>
+        <button type="button" class="send-code-btn" id="sendCodeToSlideBtn" title="Click this, then click a slide. Sends selected code only, or all code if nothing is selected.">Send Code to Slide</button>
+        <div class="code-output-wrap">
+          <div class="code-loading" id="codeLoading" aria-hidden="true">
+            <div class="loading-wheel" aria-hidden="true"></div>
+            <span class="loading-label">Generating…</span>
+          </div>
+          <pre class="code-output" id="codeOutput"><code id="codeContent"><span id="codeText"># Paste or generate Computation Layer code here.
+# Example:
+# screen1.note.text: when(slider1.number = 5, "Correct!", "Try again.")
+</span><span class="code-cursor" id="codeCursor" aria-hidden="true"></span></code></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

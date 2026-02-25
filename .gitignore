@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Env and secrets (never commit API keys)
+.env
+.env.local
+.env.*.local
+
+# Runtime / local data
+dezzy-history.json
+*.log
+.DS_Store
+
+# Optional: uncomment if you add build output
+# dist/
+# build/
