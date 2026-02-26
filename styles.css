@@ -550,6 +550,12 @@ body {
   word-break: break-word;
 }
 
+/* Placement labels: where to add CL (slide vs component) */
+.cl-placement-label {
+  color: #ff9f43;
+  font-weight: 600;
+}
+
 .code-cursor {
   display: inline-block;
   width: 2px;

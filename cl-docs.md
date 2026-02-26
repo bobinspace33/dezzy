@@ -9,7 +9,7 @@
 
 **Community:** [Computation Layer Support Forum](https://cl.desmos.com/) — [Questions](https://cl.desmos.com/c/questions/5) · [Examples](https://cl.desmos.com/c/examples/8) · [Resources/Articles](https://cl.desmos.com/c/resources/articles/12)
 
-**Deprecations and keeping docs current:** Some CL functions have been deprecated in favor of newer APIs (e.g. `sketchStrokeCount` → `sketch.strokeCount`, `angleOfLine` → `line.angle`, `bounds.setStrategy` → `bounds.METHODNAME`, **`randomInteger` → `randomGenerator`**). For random numbers use `randomGenerator()` and then `r.int(min, max)` or `r.float(min, max)` (e.g. `r = randomGenerator()` then `number("a"): r.int(-9, 9)`). Do not use `randomInteger`. **Mean of a list:** There is no `mean(list)` in CL script; compute mean as sum ÷ length using `list.reduce` for sum, `length(list)` for count, then `numericValue` with `\frac{sum}{n}` (see "Mean of a list" under List functions). This file includes a scraped **Deprecated Functions** section (search for "Deprecated Functions" or "deprecated-functions"); use the replacements listed there when generating code. For the most up-to-date list, run `node scrape-docs.js` to re-scrape the official docs, or check [Amplify CL documentation – Deprecated Functions](https://classroom.amplify.com/computation-layer/documentation#deprecated-functions) in a browser.
+**Deprecations and keeping docs current:** Some CL functions have been deprecated in favor of newer APIs (e.g. `sketchStrokeCount` → `sketch.strokeCount`, `angleOfLine` → `line.angle`, `bounds.setStrategy` → `bounds.METHODNAME`, **`randomInteger` → `randomGenerator`**). For random numbers use `randomGenerator()` and then `r.int(min, max)` or `r.float(min, max)` (e.g. `r = randomGenerator()` then `number("a"): r.int(-9, 9)`). Do not use `randomInteger`. **Mean of a list:** There is no `mean(list)` in CL script; compute mean as sum ÷ length using `list.reduce` for sum, `length(list)` for count, then `numericValue` with `\frac{sum}{n}` (see "Mean of a list" under List functions). **Table columns:** Use `table1.columnNumericValues(columnIndex)` (e.g. `table1.columnNumericValues(1)`) to get a column as a number list; do not use `table1.column("")`. **zip:** There is no `zip` function in CL. To pair two lists by index use `range(length(L)).map((i) => ...)` and access elements with `L.elementAt(i)`, `M.elementAt(i)` (indices are 1-based; use `i` from range as-is since range(10) gives [1..10]). **countBy:** There is no `countBy` in CL. To get counts by value use reduce (e.g. build a list of unique values then for each value use `values.filter((v) => v = thatValue)` and `length(...)` for the count), or another reduce-based pattern. **list.join:** In CL, `list.join(otherList)` concatenates two lists (e.g. `[1,2].join([3,4])` → [1,2,3,4]). It does **not** join list elements into a single string with a separator (no `.join(", ")`). To build one string from a list of strings use `reduce`: e.g. `list.reduce("", (acc, cur) => when(acc = "", cur, acc + ", " + cur))`. **Arrow functions:** Use a space after the comma in two-parameter callbacks: `(el, i) => ...` not `(el,i) => ...`; some parsers give "expected =>" otherwise. Prefer a single parameter `(el) =>` when the index is not needed. **numberList (no longer valid):** Do not use `numberList("name"): value` — it has been removed. To set a list variable in the graph (e.g. for aggregate), use the **expression** sink with latex that is the list literal: e.g. `L = aggregate(graph1.number("a"))`, `listLatex = `[${L.reduce("", (acc, cur) => when(acc = "", \`${cur}\`, \`${acc},${cur}\`))}]``, then `expression("a_{class}"): listLatex`. The graph can then use the variable (e.g. a_class) as a list. Build the list string with template literals (backticks) only — do not use + for string concatenation (causes "unexpected token +" syntax error). **Slide CL component references:** In slide (screen) CL, reference components by name only — use `table1`, `note1`, `graph1`, etc., not `slide1.table1` or `screen1.note1` (slide number prefix is not needed). This file includes a scraped **Deprecated Functions** section (search for "Deprecated Functions" or "deprecated-functions"); use the replacements listed there when generating code. For the most up-to-date list, run `node scrape-docs.js` to re-scrape the official docs, or check [Amplify CL documentation – Deprecated Functions](https://classroom.amplify.com/computation-layer/documentation#deprecated-functions) in a browser.
 
 **Sliders:** There is no longer a separate "slider" component. Sliders are created using the **graph component**: add a Graph component, then in the graph add a variable (e.g. `a`) and use the graph’s slider/parameter UI. Control or read the value from CL via the graph’s `number("a")` (and related graph sinks/sources). All slider behavior and CL references use the graph component.
 
@@ -196,8 +196,10 @@ content: when checkBtn.pressCount > 0 and choice1.isSelected(1) "Correct!" when 
 ```
 # This student's value (from the graph on the previous slide)
 number("a"): graph1.number("a")
-# All students' values as a list (for plotting many points)
-numberList("a_{class}"): aggregate(graph1.number("a"))
+# All students' values as a list (for plotting): use expression sink with list literal latex
+L = aggregate(graph1.number("a"))
+listLatex = `[${L.reduce("", (acc, cur) => when(acc = "", \`${cur}\`, \`${acc},${cur}\`))}]`
+expression("a_{class}"): listLatex
 ```
 In the graph on Slide 2, add a plot that uses the list (e.g. points (a_class, 0) or a histogram). Use a lighter color/opacity for the class list so the current student’s point stands out. **Testing:** Aggregation often does not work in preview; create a class code and open the activity in two or more incognito windows as different “students” to test.
 
@@ -226,9 +228,11 @@ Syntax: `(params) => expression`. Example: `(el) => el > 3`.
 - **all / any:** `list.any((el) => el > 0)`, `list.all((el) => el > 0)`.
 - **range:** `range(10)` → [1..10]; `range(5, 7)` → [5,6,7]; `range(0, 100, 20)` → step 20.
 - **slice:** `[1,2,3,4,5].slice(2, 4)` → subset (check doc for 1-based vs 0-based).
-- **join:** `[1,2].join([3,4])` → [1,2,3,4].
+- **join:** `[1,2].join([3,4])` → [1,2,3,4] (concatenates two lists only; does not join list elements into a string with a separator — use reduce for that).
 - **reverse:** `[1,2,3].reverse()` → [3,2,1].
 - **reduce:** `list.reduce(initialValue, (accumulator, current) => expression)` — e.g. sum: `numericValue(\`${accumulator}+${current}\`)`.
+
+**List of strings to one string (no .join(separator)):** CL’s `list.join(otherList)` only concatenates two lists. To turn a list of strings into one string with a separator (e.g. `"a, b, c"`) use reduce: `list.reduce("", (acc, cur) => when(acc = "", cur, acc + ", " + cur))`.
 
 ### Mean of a list (no mean() in CL script)
 
@@ -258,17 +262,19 @@ The **aggregate** function retrieves the numeric response of **all students** in
 ### How to aggregate and show on a graph on a new slide
 
 1. **Slide 1 (collection):** Add a **Graph** (or Math Response / table). Name the graph `graph1`. Have students interact (e.g. move a point, so the graph has a variable like `a`, or enter a value in a Math Response). The value you want from each student must be readable as a number (e.g. `graph1.number("a")` for a graph variable, or `input1.numericValue` for a Math Response).
-2. **Slide 2 (display):** Add a **Graph**. In that graph’s **Computation Layer**, write:
+2. **Slide 2 (display):** Add a **Graph**. In that graph's Computation Layer, write:
    - **This student’s value:** `number("a"): graph1.number("a")` — pulls the current student’s value from the component on the previous slide (use the **component name** from Slide 1, e.g. `graph1`).
-   - **All students’ values:** `numberList("a_{class}"): aggregate(graph1.number("a"))` — collects the same value from every student into a list.
+   - **All students' values:** Use the **expression** sink with list literal latex (numberList is no longer valid): assign `L = aggregate(graph1.number("a"))`, then build the list string with template literals only (no +): `listLatex = \`[\${L.reduce("", (acc, cur) => when(acc = "", \`\${cur}\`, \`\${acc},\${cur}\`))}]\``, then `expression("a_{class}"): listLatex`.
 3. **In the graph on Slide 2:** Use the list to plot (e.g. points with x = `a_class`, or a histogram). The graph’s expression list can reference the named list you set in CL.
 4. **Optional:** Use a **Submit** button with **capture** on Slide 1 so you only aggregate after students submit (avoids graphing default/origin values from students who haven’t responded yet).
 5. **Testing:** Aggregation often does not work correctly in **preview**. Test by creating a **class code**, then opening the activity in **two or more incognito windows** as different students.
 
-**Screen 2 graph CL (minimal):**
+**Slide 2 — Graph CL (use expression, not numberList):**
 ```
 number("a"): graph1.number("a")
-numberList("a_{class}"): aggregate(graph1.number("a"))
+L = aggregate(graph1.number("a"))
+listLatex = `[${L.reduce("", (acc, cur) => when(acc = "", \`${cur}\`, \`${acc},${cur}\`))}]`
+expression("a_{class}"): listLatex
 ```
 
 ### Tips

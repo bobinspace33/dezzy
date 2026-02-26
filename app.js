@@ -183,14 +183,15 @@
 
   function getCodeToSend() {
     var sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return (codeText && codeText.textContent || "").trim();
+    var fullCode = (codeContent && codeContent.textContent || "").trim();
+    if (!sel || sel.rangeCount === 0) return fullCode;
     var text = sel.toString().trim();
-    if (text.length === 0) return (codeText && codeText.textContent || "").trim();
+    if (text.length === 0) return fullCode;
     var node = sel.anchorNode;
-    if (!node) return (codeText && codeText.textContent || "").trim();
+    if (!node) return fullCode;
     var codeOutput = document.getElementById("codeOutput");
     var inCode = codeContent.contains(node) || (codeOutput && codeOutput.contains(node));
-    return inCode ? text : (codeText && codeText.textContent || "").trim();
+    return inCode ? text : fullCode;
   }
 
   function onSlideClick(e) {
@@ -355,7 +356,7 @@
       var id = card.dataset.slideId;
       return { id: id, code: slideCode[id] || "", summary: slideSummary[id] || "" };
     });
-    var codeOutput = codeText ? codeText.textContent : "";
+    var codeOutput = codeContent ? codeContent.textContent : "";
     var prompt = promptInput ? promptInput.value : "";
     return { version: 1, slides: slides, codeOutput: codeOutput, prompt: prompt };
   }
@@ -421,7 +422,7 @@
     });
     if (slideIdCounter === 0) slideIdCounter = slideCount;
 
-    if (codeText) setCodeOutput(codeOutput, false);
+    if (codeContent) setCodeOutput(codeOutput, false);
     if (promptInput) promptInput.value = prompt;
   }
 
@@ -551,26 +552,65 @@
       .replace(/&amp;/g, "&");
   }
 
+  function isPlacementLabel(line) {
+    return /^\s*Slide \d+ CL\s*$/i.test(line) ||
+      /^\s*Slide \d+ - .+ CL\s*$/i.test(line) ||
+      /^\s*Add to .+ CL\s*$/i.test(line) ||
+      /^\s*(Screen|Slide)\s*CL\s*:?\s*$/i.test(line) ||
+      /^\s*In (the )?.+ Computation Layer/i.test(line) ||
+      /^\s*Add (a |this to the )?.+ (component\. )?[Ii]n its Computation Layer/i.test(line);
+  }
+
+  function formatCodeOutputAsHtml(text) {
+    if (!text || !text.trim()) return escapeHtml(text || "");
+    var lines = text.split("\n");
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var escaped = escapeHtml(line);
+      if (isPlacementLabel(line)) {
+        out.push("<span class=\"cl-placement-label\">" + escaped + "</span>");
+      } else {
+        out.push(escaped);
+      }
+      if (i < lines.length - 1) out.push("\n");
+    }
+    return out.join("");
+  }
+
   function setCodeOutput(text, animate) {
     var s = decodeHtmlEntities(text || "# No code yet. Enter a prompt and click Generate.");
-    if (!codeText) return;
+    if (!codeContent) return;
     if (codeCursor) codeCursor.style.display = "inline-block";
     if (animate && s.length > 0) {
-      codeText.textContent = "";
+      var target = document.getElementById("codeText");
+      if (!target) {
+        target = document.createElement("span");
+        target.id = "codeText";
+        codeContent.innerHTML = "";
+        codeContent.appendChild(target);
+        if (codeCursor) codeContent.appendChild(codeCursor);
+      }
+      target.textContent = "";
       var idx = 0;
       function tick() {
         if (idx >= s.length) {
           if (codeCursor) codeCursor.style.display = "none";
+          codeContent.innerHTML = formatCodeOutputAsHtml(s);
+          if (codeCursor) codeContent.appendChild(codeCursor);
           return;
         }
-        codeText.textContent = s.slice(0, idx + 1);
+        target.textContent = s.slice(0, idx + 1);
         idx++;
         setTimeout(tick, 12);
       }
       tick();
     } else {
-      codeText.textContent = s;
-      if (codeCursor) codeCursor.style.display = "none";
+      codeContent.innerHTML = formatCodeOutputAsHtml(s);
+      if (codeCursor) {
+        codeContent.appendChild(codeCursor);
+        codeCursor.style.display = "none";
+      }
     }
   }
 
@@ -689,10 +729,11 @@
     }
   });
 
-  // Optional: allow paste into code panel
+  // Optional: after paste, trim trailing whitespace and re-apply placement labels
   codeContent.addEventListener("paste", function (e) {
     setTimeout(function () {
-      if (codeText) codeText.textContent = codeContent.textContent.replace(/\s*$/, "");
+      var raw = codeContent.textContent.replace(/\s*$/, "");
+      setCodeOutput(raw, false);
     }, 0);
   });
 })();

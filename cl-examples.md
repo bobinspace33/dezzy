@@ -40,7 +40,9 @@ otherwise "Please make a selection."
 ---
 
 # Aggregate all student responses on a new slide (Slide 2 graph CL)
-# Slide 1: graph named graph1 with e.g. variable a. Slide 2: graph with this CL:
+# Slide 1: graph named graph1 with e.g. variable a. Slide 2: graph with this CL (use expression, not numberList):
 number("a"): graph1.number("a")
-numberList("a_{class}"): aggregate(graph1.number("a"))
+L = aggregate(graph1.number("a"))
+listLatex = `[${L.reduce("", (acc, cur) => when(acc = "", `${cur}`, `${acc},${cur}`))}]`
+expression("a_{class}"): listLatex
 ```
