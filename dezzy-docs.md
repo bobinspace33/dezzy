@@ -4,6 +4,7 @@
 - [Amplify Desmos Math information] (https://amplify.com/programs/amplify-desmos-math/)
 - [Activity Builder reference] (https://service.amplify.com/article/amplify-classroom-getting-started-activity-builder)
 - [Activity Builder component/graph help] (https://service.amplify.com/article/amplify-classroom-copy-individual-components-and-edit-graphs-in-activity-builder)
+- [Computation Layer Documentation](https://classroom.amplify.com/computation-layer/documentation) — use current sinks/sources and types here; avoid deprecated functions (see [Deprecated Functions](https://classroom.amplify.com/computation-layer/documentation#deprecated-functions) for replacements).
 - [Computation Layer Support Forum] (https://cl.desmos.com/)
 
 ## Resources / Articles (Forum)
@@ -32,4 +33,4 @@ You can hard-code values or use information from **other components**. To use an
 1. What information you want (e.g. latex, submission count).
 2. Where it comes from (component **name**).
 
-**Tip:** Give components clear names and use the CL Documentation reference in each CL scripting window to see what you can override (sinks) and what you can read (sources).
+**Tip:** Give components clear names and use the CL Documentation reference in each CL scripting window to see what you can override (sinks) and what you can read (sources). The component for entering math/expressions is called **Math Response** (formerly Math Input). There is no separate slider component — sliders are made with the graph component (e.g. graph variable with slider; reference in CL via graph1.number("a")). For random numbers use **randomGenerator** (e.g. `r = randomGenerator()` then `r.int(-9, 9)` or `r.float(0, 1)`), not randomInteger. For **mean of a list**, there is no mean() in CL script — use sum via list.reduce(0, (acc, cur) => numericValue(\`${acc}+${cur}\`)), n = length(L), then meanVal = numericValue(\`\\frac{${sumVal}}{${n}}\`) (guard against n=0). **Arithmetic with variables:** CL does not evaluate infix like `target = 500 + 100*randNum`. Use `target = numericValue(\`500+100*${randNum}\`)` or `f = simpleFunction("500+100*x", "x")` then `target = f.evaluateAt(randNum)`. **Top-level rule:** Every top-level line in CL must be either a variable assignment (`name = expression`) or a sink assignment (`sinkName: value`). Bare expressions or standalone `when(...)` cause "toplevel declarations must be variable or sink assignments" errors — use `content: when(...)` or `x = when(...)` then `content: x`.

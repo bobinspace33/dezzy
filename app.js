@@ -12,6 +12,86 @@
   const codeLoading = document.getElementById("codeLoading");
   const askDezzyBtn = document.getElementById("askDezzyBtn");
   const dezzyThinking = document.getElementById("dezzyThinking");
+  const dezzyReply = document.getElementById("dezzyReply");
+  const clearPromptBtn = document.getElementById("clearPromptBtn");
+  const dezzyReplyCloseBtn = document.getElementById("dezzyReplyCloseBtn");
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function formatDezzyResponse(text) {
+    if (!text || !text.trim()) return "";
+    var t = escapeHtml(text);
+    var codeBlocks = [];
+    t = t.replace(/`([^`]*)`/g, function (_, code) {
+      var i = codeBlocks.length;
+      codeBlocks.push(escapeHtml(code));
+      return "\x00CODE" + i + "\x00";
+    });
+    var lines = t.split("\n");
+    for (var k = 0; k < lines.length; k++) {
+      var line = lines[k];
+      if (/^\s*(screen\d+|note\d+|input\d+|graph\d+|table\d+)\.[\s\S]*/.test(line) || /when\s*\(|otherwise|bind\s*:/.test(line)) {
+        lines[k] = "<span class=\"dezzy-code\">" + line + "</span>";
+      }
+    }
+    t = lines.join("\n");
+    var keywordRegex = /\b(screen\d+|note\d+|input\d+|graph\d+|table\d+|cardsort\d+|challenge\d+|polygraph\d+|sketch\d+|actionbutton\d+|reorder\d+|Computation Layer|CL|component|Graph|Note|Input|Screen|Table|Math Response|when|otherwise|bind:|numericValue|content\.|\.content|\.hidden)\b/gi;
+    t = t.replace(keywordRegex, "<span class=\"dezzy-keyword\">$1</span>");
+    for (var j = 0; j < codeBlocks.length; j++) {
+      t = t.replace("\x00CODE" + j + "\x00", "<span class=\"dezzy-code\">" + codeBlocks[j] + "</span>");
+    }
+    return t.replace(/\n/g, "<br>");
+  }
+
+  function showDezzyReply(html, append) {
+    if (!dezzyReply) return;
+    dezzyReply.removeAttribute("hidden");
+    dezzyReply.setAttribute("aria-hidden", "false");
+    if (append) {
+      dezzyReply.innerHTML = dezzyReply.innerHTML + "<br><br>" + html;
+    } else {
+      dezzyReply.innerHTML = html;
+    }
+  }
+
+  var CHAR_DELAY_MS = 12;
+  var SENTENCE_PAUSE_MS = 1000;
+
+  function typeDezzyReply(plainText, append, done) {
+    if (!dezzyReply || !plainText) {
+      if (done) done();
+      return;
+    }
+    plainText = decodeHtmlEntities(plainText);
+    if (!append) {
+      dezzyReply.removeAttribute("hidden");
+      dezzyReply.setAttribute("aria-hidden", "false");
+      dezzyReply.innerHTML = "";
+    }
+    var prefix = append ? dezzyReply.innerHTML + "<br><br>" : "";
+    var i = 0;
+    promptTypingInProgress = true;
+    function tick() {
+      if (i >= plainText.length) {
+        promptTypingInProgress = false;
+        if (done) done();
+        setTimeout(flushSuggestionQueue, 50);
+        return;
+      }
+      var visible = plainText.slice(0, i + 1);
+      dezzyReply.innerHTML = prefix + formatDezzyResponse(visible);
+      var lastChar = plainText[i];
+      i++;
+      var nextDelay = /[.!?]/.test(lastChar) ? SENTENCE_PAUSE_MS : CHAR_DELAY_MS;
+      setTimeout(tick, nextDelay);
+    }
+    tick();
+  }
 
   function getAsciiFromTemplate(id) {
     var el = document.getElementById(id);
@@ -168,7 +248,7 @@
     }
 
     if (slideCode[id]) {
-      setCodeOutput(slideCode[id], true);
+      setCodeOutput(slideCode[id], false);
     }
   }
 
@@ -427,10 +507,11 @@
   }
 
   function typeIntoPrompt(fullText, done, isDezzy) {
-    if (isDezzy && fullText && fullText.indexOf("(Dezzy)") !== 0) {
-      fullText = "(Dezzy) " + fullText;
+    if (isDezzy && fullText) {
+      if (fullText.indexOf("(Dezzy)") !== 0) fullText = "(Dezzy) " + fullText;
+      typeDezzyReply(fullText, false, done);
+      return;
     }
-    if (isDezzy && promptInput) promptInput.classList.add("dezzy-output");
     promptInput.value = "";
     promptTypingInProgress = true;
     var i = 0;
@@ -449,31 +530,29 @@
   }
 
   function appendDezzyToPrompt(text, done) {
-    if (!promptInput || !text || !text.trim()) { if (done) done(); return; }
-    var suffix = "\n\n(Dezzy) " + text.trim();
-    if (promptInput) promptInput.classList.add("dezzy-output");
-    promptTypingInProgress = true;
-    var i = 0;
-    function tick() {
-      if (i >= suffix.length) {
-        promptTypingInProgress = false;
-        if (done) done();
-        setTimeout(flushSuggestionQueue, 50);
-        return;
-      }
-      promptInput.value += suffix[i];
-      i++;
-      setTimeout(tick, 18);
-    }
-    tick();
+    if (!text || !text.trim()) { if (done) done(); return; }
+    var prefixed = "(Dezzy) " + text.trim();
+    typeDezzyReply(prefixed, true, done);
   }
 
   function removeDezzyOutputClass() {
     if (promptInput) promptInput.classList.remove("dezzy-output");
   }
 
+  function decodeHtmlEntities(str) {
+    if (typeof str !== "string") return str;
+    return str
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&le;/g, "≤")
+      .replace(/&ge;/g, "≥")
+      .replace(/&quot;/g, "\"")
+      .replace(/&nbsp;/g, "\u00A0")
+      .replace(/&amp;/g, "&");
+  }
+
   function setCodeOutput(text, animate) {
-    var s = text || "# No code yet. Enter a prompt and click Generate.";
+    var s = decodeHtmlEntities(text || "# No code yet. Enter a prompt and click Generate.");
     if (!codeText) return;
     if (codeCursor) codeCursor.style.display = "inline-block";
     if (animate && s.length > 0) {
@@ -514,6 +593,31 @@
     promptInput.addEventListener("focus", removeDezzyOutputClass);
   }
 
+  if (clearPromptBtn && promptInput) {
+    clearPromptBtn.addEventListener("click", function () {
+      promptInput.value = "";
+      promptInput.focus();
+    });
+  }
+
+  if (dezzyReplyCloseBtn && dezzyReply) {
+    dezzyReplyCloseBtn.addEventListener("click", function () {
+      dezzyReply.setAttribute("hidden", "");
+      dezzyReply.setAttribute("aria-hidden", "true");
+    });
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (!e.metaKey && !e.ctrlKey) return;
+    if (e.key === "1") {
+      e.preventDefault();
+      if (generateBtn) generateBtn.click();
+    } else if (e.key === "2") {
+      e.preventDefault();
+      if (askDezzyBtn) askDezzyBtn.click();
+    }
+  });
+
   function showDezzyThinking(show) {
     if (!dezzyThinking) return;
     if (show) {
@@ -527,6 +631,7 @@
 
   if (askDezzyBtn) {
     askDezzyBtn.addEventListener("click", function () {
+      if (askDezzyBtn.disabled) return;
       var msg = (promptInput && promptInput.value.trim()) || "Hello! What can you help me with?";
       askDezzyBtn.disabled = true;
       showDezzyThinking(true);
@@ -570,7 +675,9 @@
         setCodeOutput("# Error: " + (data.error || res.statusText));
         return;
       }
-      setCodeOutput(data.code || "# No code returned.", true);
+      const code = data.code != null ? data.code : "";
+      const errHint = data.error ? "\n# " + data.error : "";
+      setCodeOutput(code || "# No code returned." + errHint, true);
     } catch (err) {
       setCodeOutput("# Request failed: " + err.message + "\n# Make sure the server is running (npm run start).");
     } finally {

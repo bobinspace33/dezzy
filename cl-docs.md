@@ -1,6 +1,6 @@
 # Computation Layer (CL) Documentation
 
-**Purpose:** Reference for Amplify Desmos Activity Builder Computation Layer. Use this file as context for LLM-generated CL code.
+**Purpose:** Reference for Amplify Desmos Activity Builder Computation Layer. Use this file as context for LLM-generated CL code. **Generated code must use only sinks, sources, and syntax described in this document** — no invented or undocumented APIs.
 
 **Official docs (content loads via JavaScript; open in a browser to view full reference):**
 - [Computation Layer Documentation](https://classroom.amplify.com/computation-layer/documentation)
@@ -9,12 +9,21 @@
 
 **Community:** [Computation Layer Support Forum](https://cl.desmos.com/) — [Questions](https://cl.desmos.com/c/questions/5) · [Examples](https://cl.desmos.com/c/examples/8) · [Resources/Articles](https://cl.desmos.com/c/resources/articles/12)
 
+**Deprecations and keeping docs current:** Some CL functions have been deprecated in favor of newer APIs (e.g. `sketchStrokeCount` → `sketch.strokeCount`, `angleOfLine` → `line.angle`, `bounds.setStrategy` → `bounds.METHODNAME`, **`randomInteger` → `randomGenerator`**). For random numbers use `randomGenerator()` and then `r.int(min, max)` or `r.float(min, max)` (e.g. `r = randomGenerator()` then `number("a"): r.int(-9, 9)`). Do not use `randomInteger`. **Mean of a list:** There is no `mean(list)` in CL script; compute mean as sum ÷ length using `list.reduce` for sum, `length(list)` for count, then `numericValue` with `\frac{sum}{n}` (see "Mean of a list" under List functions). This file includes a scraped **Deprecated Functions** section (search for "Deprecated Functions" or "deprecated-functions"); use the replacements listed there when generating code. For the most up-to-date list, run `node scrape-docs.js` to re-scrape the official docs, or check [Amplify CL documentation – Deprecated Functions](https://classroom.amplify.com/computation-layer/documentation#deprecated-functions) in a browser.
+
+**Sliders:** There is no longer a separate "slider" component. Sliders are created using the **graph component**: add a Graph component, then in the graph add a variable (e.g. `a`) and use the graph’s slider/parameter UI. Control or read the value from CL via the graph’s `number("a")` (and related graph sinks/sources). All slider behavior and CL references use the graph component.
+
+**Math Response:** The component for entering math or expressions is now called **Math Response** (formerly "Math Input" or "expression input"). In CL and docs you may still see references to "expression input"; treat them as Math Response. Use the same sinks/sources (e.g. `numericValue`, `latex`, `submitted`).
+
+**Top-level rule (required):** Every top-level line in a CL script must be either a **variable assignment** (`name = expression`) or a **sink assignment** (`sinkName: value`). Do not write bare expressions or standalone function calls at the top level — they cause "toplevel declarations must be variable or sink assignments" errors. Use `when`/`otherwise` only as the right-hand side of a variable or a sink (e.g. `content: when(...) ... otherwise ...` or `feedback = when(...) ... otherwise ...` then `content: feedback`).
+
 ---
 
 ## Resources / Articles (Forum)
 
 - [Computation Layer 101](https://cl.desmos.com/t/computation-layer-101/8414)
 - [List Functions in CL](https://cl.desmos.com/t/list-functions-in-cl/7353)
+- [CL Newsletter, July 2021 – Aggregating Responses](https://cl.desmos.com/t/cl-newsletter-july-2021-aggregating-responses/5462) — using `aggregate` to show class data
 - [Animations and Parametric Curves](https://cl.desmos.com/t/animations-and-parametric-curves/8150)
 - [numericValue vs simpleFunction](https://cl.desmos.com/t/numericvalue-vs-simplefunction/5528)
 - [Sketch / Save This Snippet / Sketch Inside The Lines](https://cl.desmos.com/c/resources/articles/12) — various sketch and transformation articles
@@ -59,15 +68,15 @@ For true/false sinks, you can often give just the condition for “true”; you 
 - **Variable** in CL uses `=` (e.g. `previous = ...`). It’s different from a sink, which uses `:`.
 - You can read from **capture history** (e.g. last value, value before last) to compare previous vs current answers (e.g. “warmer” / “colder”).
 
-### Example: overriding note with input’s latex
+### Example: overriding note with Math Response value
 
-1. Name the math input (e.g. `input1`).
-2. In a note’s CL: set `content` to the input’s latex source (e.g. `input1.latex` or the appropriate source from the doc).
+1. Name the Math Response component (e.g. `input1`).
+2. In a note’s CL: set `content` to the component’s latex source (e.g. `input1.latex` or the appropriate source from the doc).
 3. Optionally use `when`/`otherwise` to show different content before/after submission.
 
-### Example: disabling the math input after one submission
+### Example: disabling the Math Response after one submission
 
-In the input component’s CL, find the sink that controls whether the student can submit again (e.g. “submissions” or “disabled”); override it with a condition on the number of submissions (e.g. `when(this.submissionCount > 0, false, true)` or the boolean shortcut).
+In the Math Response component’s CL, find the sink that controls whether the student can submit again (e.g. “submissions” or “disabled”); override it with a condition on the number of submissions (e.g. `when(this.submissionCount > 0, false, true)` or the boolean shortcut).
 
 ---
 
@@ -85,6 +94,114 @@ Toggle visibility with a button using `hidden` and `pressCount`.
 
 **Alternative (mod for toggle):**  
 `p = hint1.pressCount` and `hidden: numericValue("\\mod(${p},2)") = 0`. Mod lets you cycle through more than two states (e.g. mod 4 for four states).
+
+### Arithmetic in numericValue() and LaTeX strings
+
+The argument to `numericValue()` is a **LaTeX string**. Raw `-` and `/` can cause parsing issues. Use these forms instead:
+
+- **Division:** Do **not** use a bare `/` for division in LaTeX strings. Use:
+  - **Fraction:** `\frac{numerator}{denominator}` — e.g. `numericValue("\\frac{5}{13}")` or inside template literals `` numericValue(`\\frac{${a}}{${b}}`) ``. In double-quoted strings use double backslash: `"\\frac{3}{4}"`.
+  - **Obelus (÷):** `\div` — e.g. `numericValue("10\\div2")`.
+- **Subtraction:** Use the minus sign with clear operands; wrap in **parentheses** to avoid ambiguity (e.g. unary minus vs hyphen). Examples: `numericValue("${min(X)}-5")`, `numericValue("(-1)^{${n}}")`, or `` numericValue(`(${a})-(${b})`) `` for a minus b. If you get errors, try `` numericValue(`(${x})-(${y})`) `` so the minus is unambiguously binary subtraction.
+
+**Summary:** In `numericValue(...)` use `\frac{}{}` or `\div` for division; use `-` for subtraction with parentheses around operands when needed.
+
+**Arithmetic with variables (e.g. target = 500 + 100 * randNum):** CL does not evaluate infix expressions like `500 + 100 * randNum` as code. You must use one of these:
+
+1. **numericValue with a template literal** — build a string and evaluate it:  
+   `target = numericValue(\`500+100*${randNum}\`)`  
+   Use `+`, `-`, `*` in the string; for division use `\\frac{${a}}{${b}}` or `\\div`. Parentheses help (e.g. `\`500+(100*${randNum})\``). Avoid using the letter `e` in the string for scientific notation (it is parsed as the constant e); use `10^{...}` or simpleFunction instead.
+
+2. **simpleFunction** — for expressions with one or more variables, define a function and evaluate at values:  
+   `f = simpleFunction("500+100*x", "x")`  
+   `target = f.evaluateAt(randNum)`  
+   For two variables: `prod = simpleFunction("x*y", "x", "y")` then `ans = prod.evaluateAt(2, G)`. Use LaTeX in the string (e.g. `\times` for multiply in some contexts).
+
+So instead of `target = 500 + 100 * randNum`, write either  
+`target = numericValue(\`500+100*${randNum}\`)`  
+or  
+`f = simpleFunction("500+100*x", "x")` and `target = f.evaluateAt(randNum)`.
+
+---
+
+## Working code examples (use these patterns)
+
+These are minimal, copy-paste-ready CL patterns. Generate code that follows the same structure and only uses documented sinks/sources.
+
+**1. Note showing Math Response value (component CL on the Note)**  
+Name the Math Response component (e.g. `input1`). In the Note’s CL:
+```
+content: input1.latex
+```
+Or with a when/otherwise before vs after submit:
+```
+content: when input1.submitted input1.latex otherwise "Enter an expression above."
+```
+
+**2. Note with correctness feedback from another component**  
+Name the Math Response component `exp1`. In a Note’s CL (screen or same screen):
+```
+feedback = when exp1.script.correct "That's correct!" otherwise "Not correct yet."
+content: feedback
+```
+In exp1’s CL define correct and the correct sink:
+```
+correct = this.numericValue > 7
+correct: correct
+```
+
+**3. Graph: correctness from a graph variable (e.g. slope m)**  
+In the Graph component’s CL:
+```
+isCorrect = this.number("m") = 2
+correct: isCorrect
+```
+(Use the graph to define a variable `m` and give it a slider so students can change it.)
+
+**4. Action button: label changes with press count**  
+In the button’s CL:
+```
+label: when this.pressCount = 0 "Start" otherwise "Press again"
+```
+
+**5. Hide a component until a button is pressed**  
+Name the button `showBtn`. On the component you want to hide:
+```
+hidden: showBtn.pressCount < 1
+```
+
+**6. Graph number and point label from a Math Response**  
+Name the Math Response component `exp1` and the graph `graph1`. In the graph’s CL:
+```
+number("n"): exp1.numericValue
+pointLabel("A"): `n = ${exp1.numericValue}`
+```
+
+**7. Screen CL: note content from Math Response on same screen**  
+Screen CL (script on the screen, not a component):
+```
+content: when input1.submitted input1.latex otherwise "Submit your answer."
+```
+(Assumes a note and Math Response on that screen; adjust component names.)
+
+**8. Multiple choice + feedback note**  
+Name the multiple choice `choice1` and a button `checkBtn`. In the feedback note’s CL:
+```
+content: when checkBtn.pressCount > 0 and choice1.isSelected(1) "Correct!" when checkBtn.pressCount > 0 "Try again." otherwise "Select an answer and press Check."
+```
+
+**9. Aggregate all student responses and show on a graph on a new slide**  
+- **Slide 1:** Add a Graph component; name it `graph1`. Have students move a point or use a variable (e.g. create a point or variable named `a` in the graph). Optionally use a button with **capture** so you only aggregate after they submit.  
+- **Slide 2:** Add a Graph component. In that graph’s CL, show the **current student’s** value and **everyone’s** values using `aggregate`:
+```
+# This student's value (from the graph on the previous slide)
+number("a"): graph1.number("a")
+# All students' values as a list (for plotting many points)
+numberList("a_{class}"): aggregate(graph1.number("a"))
+```
+In the graph on Slide 2, add a plot that uses the list (e.g. points (a_class, 0) or a histogram). Use a lighter color/opacity for the class list so the current student’s point stands out. **Testing:** Aggregation often does not work in preview; create a class code and open the activity in two or more incognito windows as different “students” to test.
+
+When generating code, prefer these patterns and the same component names (input1, note1, graph1, exp1, etc.) unless the user specifies otherwise. Refer to the math/expression component as **Math Response** in instructions. Every top-level line must be a variable assignment (=) or a sink assignment (:); no bare expressions.
 
 ---
 
@@ -113,7 +230,53 @@ Syntax: `(params) => expression`. Example: `(el) => el > 3`.
 - **reverse:** `[1,2,3].reverse()` → [3,2,1].
 - **reduce:** `list.reduce(initialValue, (accumulator, current) => expression)` — e.g. sum: `numericValue(\`${accumulator}+${current}\`)`.
 
+### Mean of a list (no mean() in CL script)
+
+CL script does not provide a `mean(list)` function. Compute the mean as **sum ÷ length** using `list.reduce` for the sum and `length(list)` for the count, then divide with `numericValue` (use `\frac{}{}` for division). Example:
+
+```
+# Sum of the list (e.g. L from aggregate or a numberList)
+sumVal = L.reduce(0, (acc, cur) => numericValue(`${acc}+${cur}`))
+n = length(L)
+# Mean; guard against empty list
+meanVal = when n = 0 0 otherwise numericValue(`\frac{${sumVal}}{${n}}`)
+content: "Class average: `${meanVal}`"
+```
+
+If the list is in a **graph** (e.g. `numberList("L"): aggregate(...)`), you can sometimes use the graph’s calculator (e.g. a line or label that references mean in the graph expression list), but in component or screen CL script use the reduce + length + numericValue pattern above.
+
 *(List features may be preview; check official docs for current behavior.)*
+
+---
+
+## Aggregating responses (aggregate)
+
+*Source: [CL Newsletter, July 2021 – Aggregating Responses](https://cl.desmos.com/t/cl-newsletter-july-2021-aggregating-responses/5462)*
+
+The **aggregate** function retrieves the numeric response of **all students** in an activity. You can use any numeric value students enter or interact with: values in a table or Math Response, coordinates of points on a graph, etc. This makes it possible to show class data on a **later slide** (e.g. “see where everyone placed their point”) without opening the teacher dashboard.
+
+### How to aggregate and show on a graph on a new slide
+
+1. **Slide 1 (collection):** Add a **Graph** (or Math Response / table). Name the graph `graph1`. Have students interact (e.g. move a point, so the graph has a variable like `a`, or enter a value in a Math Response). The value you want from each student must be readable as a number (e.g. `graph1.number("a")` for a graph variable, or `input1.numericValue` for a Math Response).
+2. **Slide 2 (display):** Add a **Graph**. In that graph’s **Computation Layer**, write:
+   - **This student’s value:** `number("a"): graph1.number("a")` — pulls the current student’s value from the component on the previous slide (use the **component name** from Slide 1, e.g. `graph1`).
+   - **All students’ values:** `numberList("a_{class}"): aggregate(graph1.number("a"))` — collects the same value from every student into a list.
+3. **In the graph on Slide 2:** Use the list to plot (e.g. points with x = `a_class`, or a histogram). The graph’s expression list can reference the named list you set in CL.
+4. **Optional:** Use a **Submit** button with **capture** on Slide 1 so you only aggregate after students submit (avoids graphing default/origin values from students who haven’t responded yet).
+5. **Testing:** Aggregation often does not work correctly in **preview**. Test by creating a **class code**, then opening the activity in **two or more incognito windows** as different students.
+
+**Screen 2 graph CL (minimal):**
+```
+number("a"): graph1.number("a")
+numberList("a_{class}"): aggregate(graph1.number("a"))
+```
+
+### Tips
+
+- **Color / opacity:** Use a lighter color or opacity (e.g. &lt; 1) for aggregated points so many overlapping points don’t overpower the screen. Overlap can highlight trends or common responses.
+- **Animations:** A “Show class data” button can fade in aggregated points (one by one or all at once).
+- **Hide incomplete responses:** If students haven’t responded yet, aggregated data can be misleading (e.g. default/origin values). Use a “Submit” (or similar) action so you only graph **submitted** responses.
+- **Example activities:** [Graph Template with Aggregation](https://teacher.desmos.com/activitybuilder/custom/5aa722d66bfc434522b1f4f4), [Aggregate Question](https://teacher.desmos.com/activitybuilder/custom/61aec0908a458151e7a3c30d) (Desmos Classroom).
 
 ---
 
@@ -143,7 +306,13 @@ The official pages at **classroom.amplify.com** and **teacher.desmos.com** rende
    ```
    This opens the documentation in a headless browser, waits for content, and appends the extracted text to `cl-docs.md` (or see script output for the path it writes).
 
-2. **Or:** Open the [Computation Layer Documentation](https://classroom.amplify.com/computation-layer/documentation) and [Components](https://classroom.amplify.com/computation-layer/documentation#components) in a browser, then manually copy the sections you need into this file.
+2. **Pull forum example code** into `cl-examples.md` for better code-generation context:
+   ```bash
+   node scrape-examples.js
+   ```
+   This scrapes CL code snippets from the [forum Examples category](https://cl.desmos.com/c/examples/8) and writes them to `cl-examples.md`. The server uses this file when generating code if it exists.
+
+3. **Or:** Open the [Computation Layer Documentation](https://classroom.amplify.com/computation-layer/documentation) and [Components](https://classroom.amplify.com/computation-layer/documentation#components) in a browser, then manually copy the sections you need into this file.
 
 
 
@@ -249,7 +418,7 @@ feedback =
   when exp1.script.correct "That's correct!"
   otherwise "Not correct yet."
 Use the Graphing Calculator
-For more complicated examples of correctness, one nice technique is to use the graphing calculator. We like to use movable points with a step set on sliders to enable snapping.
+For more complicated examples of correctness, one nice technique is to use the graphing calculator. We like to use movable points with a step set on sliders (sliders are made with the graph component, not a separate component) to enable snapping.
 In this example, we want a slope of 2. The graph computes the slope using a variable called 
 "m"
 m, and then uses snapping. The Computation Layer is just this line:
@@ -881,7 +1050,7 @@ bounds: graph1.bounds
 labelTextidentifier: string
 Gets the content from a point label based on the name of the point.
 # This sets the variable to be equal to the text of 
-# the label if the student drags the slider above zero.
+# the label if the student drags the graph slider (movable point) above zero.
 # If students have it less than or equal to zero, it will
 # be blank and not display any text.
 ​
@@ -3878,7 +4047,7 @@ background: sketchLayer(sketch1.sketch.setOpacity(0.4))
 scaleThicknessBy
 scale the stroke thickness and point size by the provided amount, to a minimum of 1px for strokes and 2px for points.
 # Create a background sketch layer using the student's sketch.
-# Scale the thickness based on the slider value in this graph
+# Scale the thickness based on the graph slider/variable value (this graph)
 # (it goes from 0 to 2).
 ​
 background: sketchLayer(sketch1.sketch.scaleThicknessBy(this.number(`a`)))

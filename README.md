@@ -20,6 +20,7 @@ Simple split-screen UI: prompt + slide thumbnails on the left, **Computation Lay
      - [Computation Layer Documentation](https://classroom.amplify.com/computation-layer/documentation) · [Components](https://classroom.amplify.com/computation-layer/documentation#components)
      - [teacher.desmos.com/computation-layer/documentation](https://teacher.desmos.com/computation-layer/documentation)
    - **Scrape full official docs into `cl-docs.md`:** run `npm install` then `npm run scrape-docs`. This uses Puppeteer to open the docs, wait for content, and append the text to `cl-docs.md`.
+   - **Scrape sites into the Guides folder:** Add URLs to `Guides/urls.txt` (one per line) or pass them as arguments. Run `npm run scrape-guides` to fetch each site and save it as a markdown file in `Guides/` (e.g. for reference materials, style guides, or learning-object docs). Requires Puppeteer.
 
 3. **Files you might add**
    - `config.js` or `.env`: store `API_KEY`, `API_BASE_URL`, `MODEL` (don’t commit real keys).

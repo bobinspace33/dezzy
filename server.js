@@ -29,6 +29,12 @@ function getClDocsContext() {
   return fs.readFileSync(p, "utf8").slice(0, 14000);
 }
 
+function getClExamplesContext() {
+  const p = path.join(__dirname, "cl-examples.md");
+  if (!fs.existsSync(p)) return "";
+  return fs.readFileSync(p, "utf8").slice(0, 4000);
+}
+
 // Extra docs/sites Dezzy can use. Put pasted content, links, or notes here.
 function getDezzyExtraContext() {
   const p = path.join(__dirname, "dezzy-docs.md");
@@ -70,6 +76,31 @@ async function getDocsFolderContext() {
     }
     if (parts.length === 0) return "";
     return parts.join("\n\n").slice(0, DOCS_MAX_CHARS);
+  } catch (_) {
+    return "";
+  }
+}
+
+// Guides folder: scraped sites (from scrape-guides.js), .md only
+const GUIDES_FOLDER = path.join(__dirname, "Guides");
+const GUIDES_MAX_CHARS = 18000;
+
+function getGuidesFolderContext() {
+  if (!fs.existsSync(GUIDES_FOLDER) || !fs.statSync(GUIDES_FOLDER).isDirectory()) return "";
+  const parts = [];
+  try {
+    const entries = fs.readdirSync(GUIDES_FOLDER, { withFileTypes: true });
+    const files = entries
+      .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md"))
+      .map((e) => e.name)
+      .sort();
+    for (const name of files) {
+      const fp = path.join(GUIDES_FOLDER, name);
+      const raw = fs.readFileSync(fp, "utf8");
+      if (raw && raw.trim().length > 0) parts.push(raw);
+    }
+    if (parts.length === 0) return "";
+    return parts.join("\n\n").slice(0, GUIDES_MAX_CHARS);
   } catch (_) {
     return "";
   }
@@ -195,13 +226,37 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const systemPrompt = `You are an expert in Desmos Activity Builder Computation Layer (CL). Output only valid CL code, no markdown code fences or extra explanation.
+    const clDocsContext = getClDocsContext().slice(0, 10000);
+    const clExamplesContext = getClExamplesContext();
+    const systemPrompt = `You are an expert in Desmos Activity Builder Computation Layer (CL). You must output ONLY valid CL code that uses built-in, documented features. Do not wrap in markdown code fences.
 
-Rules:
-- Use standard CL syntax: component names (e.g. input1, note1), when/otherwise, content, hidden, numericValue, etc.
-- Write code for the screens and components the user is describing. Do NOT generate a long list of screens (e.g. screen1, screen2, ... screen20) unless the user explicitly asks for many screens.
-- Prefer one or a few targeted lines (e.g. one note, one input) over repeating the same property across many screens.
-- If the user says "hide" something, target that specific component or screen, not every screen.`;
+Prefer the "Working code examples" and any "Forum example snippets" in the documentation below — match their structure, syntax, and component names (input1, note1, graph1, exp1, etc.) unless the user asks otherwise.
+
+STRICT RULES — only use features that exist in the CL documentation below:
+- Every top-level line in CL must be either a variable assignment (name = expression) or a sink assignment (sinkName: value). Do not output bare expressions or standalone when(...) or function calls at top level — this causes "toplevel declarations must be variable or sink assignments" errors. Use when/otherwise only on the right-hand side of = or :.
+- Use ONLY sinks, sources, functions, component types, and syntax that appear in the documentation provided. Do not invent or assume any APIs. If a feature is not documented below, do not use it.
+- For slide CL and component CL, only reference documented components (e.g. note, graph, Math Response [for math/expressions], action button, multiple choice, table, etc.) and their documented sinks/sources. The math/expression component is called Math Response (formerly Math Input). There is no separate slider component — use the graph component for sliders (e.g. add a Graph, create a variable like a in the graph with its slider; reference via graph1.number("a")).
+- Do not use deprecated functions; use the replacements listed in the Deprecated Functions section (e.g. sketch.strokeCount not sketchStrokeCount, line.angle not angleOfLine). Use randomGenerator() with r.int() or r.float() for random numbers — do not use randomInteger. For mean of a list, do not use mean() — use list.reduce(0, (acc, cur) => numericValue(...)) for sum, length(list) for count, then numericValue with \\frac{sum}{n} for the mean.
+- In numericValue() strings (LaTeX): do not use raw / for division — use \\frac{numerator}{denominator} or \\div. For subtraction use - with parentheses around operands when needed, e.g. numericValue(\`(\${a})-(\${b})\`).
+- Arithmetic with variables: CL does not support infix expressions like target = 500 + 100*randNum. Use numericValue with a template literal (e.g. target = numericValue(\`500+100*\${randNum}\`)) or simpleFunction (e.g. f = simpleFunction("500+100*x", "x") then target = f.evaluateAt(randNum)).
+- If the user asks for something that has no documented CL feature, use the closest documented alternative and add a brief comment (#) explaining the limitation.
+
+Where code goes:
+1. SLIDE CL (screen computation layer): Code at the screen/slide level. Label with a brief line like "Add this to the slide's Computation Layer:" or "Screen CL:" before the code.
+2. COMPONENT CL: Code inside a specific component. For each component, include one line naming the component and where to add the code, then the code (e.g. "Add a Note component. In its Computation Layer, add:").
+
+Format: plain text only — short instruction line(s) then the CL code, then next instruction and code. In CL code, comments use # only (e.g. # optional note). Do not use // or /* */ for comments. Use # comments only when helpful. Keep instructions to one line per placement.
+
+Other rules:
+- Use standard documented syntax: when/otherwise, content, hidden, numericValue, component names (e.g. input1, note1, graph1).
+- Write code only for what the user asked; do not generate long lists of screens unless they ask.
+- Prefer a few targeted lines over repeating the same property on many screens.
+- Target the specific component or screen the user mentions (e.g. for "hide X", hide that component only). For aggregating all student responses on a new slide: Slide 1 has a graph (e.g. graph1) with a value to collect; Slide 2 graph CL uses number("a"): graph1.number("a") and numberList("a_{class}"): aggregate(graph1.number("a")).
+
+--- BEGIN CL DOCUMENTATION (authoritative reference; only use features described here) ---
+${clDocsContext}
+${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) ---\n\n" + clExamplesContext + "\n--- END EXAMPLES ---\n" : ""}
+--- END CL DOCUMENTATION ---`;
 
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -216,7 +271,7 @@ Rules:
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt },
           ],
-          max_completion_tokens: 1024,
+          max_tokens: 1024,
         }),
       });
 
@@ -224,15 +279,26 @@ Rules:
 
       if (!response.ok) {
         const errMsg = data.error?.message || data.error?.code || response.statusText;
+        console.error("[api/generate] OpenAI error:", data.error || response.status);
         res.writeHead(response.status, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: String(errMsg) }));
         return;
       }
 
-      const content = data.choices?.[0]?.message?.content?.trim() || "";
+      const content = (data.choices?.[0]?.message?.content ?? "").trim();
+      if (!content) {
+        console.error("[api/generate] OpenAI returned empty content. Model:", OPENAI_MODEL, "Raw choices:", JSON.stringify(data.choices?.length ?? 0));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          code: "",
+          error: "OpenAI returned no text. Check OPENAI_MODEL in .env (e.g. gpt-4o, gpt-4o-mini, gpt-4.1) and that your API key is valid.",
+        }));
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ code: content }));
     } catch (err) {
+      console.error("[api/generate] Request failed:", err.message);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message || "OpenAI request failed" }));
     }
@@ -263,7 +329,7 @@ Rules:
       return;
     }
 
-    const systemPrompt = "You summarize Desmos Activity Builder Computation Layer (CL) code in very short phrases for a slide thumbnail. Reply with only the phrase: at most 8 words, no quotes, no period. Describe what the code does (e.g. 'Note shows feedback when input submitted', 'Hide button until slider value is 5').";
+    const systemPrompt = "You summarize Desmos Activity Builder Computation Layer (CL) code in very short phrases for a slide thumbnail. Reply with only the phrase: at most 8 words, no quotes, no period. Describe what the code does (e.g. 'Note shows feedback when input submitted', 'Hide button until graph slider value is 5'). There is no separate slider component; sliders use the graph component.";
 
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -328,6 +394,7 @@ Rules:
     const dezzyExtra = getDezzyExtraContext();
     const docsFolder = await getDocsFolderContext();
     let systemText = (GEMINI_INSTRUCTIONS || "").trim();
+    systemText += "\n\nGive complete, thorough answers. Do not stop mid-explanation; include full solutions, code fixes, and steps when explaining errors or answering questions. When writing CL code, use # for comments only (not // or /* */).";
     if (clDocs) {
       systemText += "\n\nUse the following Computation Layer documentation as reference (abbreviated):\n\n" + clDocs;
     }
@@ -337,13 +404,17 @@ Rules:
     if (docsFolder) {
       systemText += "\n\nReference from Docs folder (Amplify Desmos math philosophy, style, learning objects, scope and sequence, etc.). Use these to align advice and suggestions:\n\n" + docsFolder;
     }
+    const guidesFolder = getGuidesFolderContext();
+    if (guidesFolder) {
+      systemText += "\n\nScraped guides (from Guides folder). Use for style, pedagogy, or reference:\n\n" + guidesFolder;
+    }
     if (Object.keys(slideCodeContext).length > 0) {
       systemText += "\n\nCode the user has saved per slide (slideId -> code):\n" + JSON.stringify(slideCodeContext, null, 0).slice(0, 4000);
     }
 
     let userText = message;
     if (suggestionRequest && codeJustStored) {
-      userText = "The user just copied this code to a slide:\n\n" + codeJustStored.slice(0, 2000) + "\n\nGive 1-2 short suggestions for what else they could add to other slides (e.g. related CL features or improvements). Reply in plain text only, clear English, 2-4 sentences. No placeholders or scrambled text.";
+      userText = "The user just copied this code to a new slide:\n\n" + codeJustStored.slice(0, 2000) + "\n\nGive 1-2 short ideas for: (1) how to improve or extend this activity, (2) how to make it more interactive (e.g. with CL, graph, input, or feedback), and/or (3) how to include a higher-order or higher DOK (Depth of Knowledge) task—e.g. reasoning, explaining, comparing, or creating. Reply in plain text only, clear English, 2-4 sentences. No placeholders or scrambled text.";
     }
     const userMessageForHistory = userText || "Say hello and remind me you can help with CL.";
 
@@ -351,7 +422,7 @@ Rules:
     const payload = {
       contents,
       systemInstruction: { parts: [{ text: systemText }] },
-      generationConfig: { maxOutputTokens: 1024 },
+      generationConfig: { maxOutputTokens: 16384 },
     };
 
     async function callGemini(model) {
@@ -390,8 +461,13 @@ Rules:
         return;
       }
 
-      const part = candidates[0]?.content?.parts?.[0];
+      const candidate = candidates[0];
+      const part = candidate?.content?.parts?.[0];
       const text = (part?.text || "").trim();
+      const finishReason = candidate?.finishReason;
+      if (finishReason === "MAX_TOKENS") {
+        console.warn("Dezzy response was cut (MAX_TOKENS). Consider increasing maxOutputTokens.");
+      }
 
       dezzyChatHistory.push({ role: "user", text: userMessageForHistory, at: Date.now() });
       dezzyChatHistory.push({ role: "model", text, at: Date.now() });
@@ -413,5 +489,7 @@ Rules:
 server.listen(PORT, () => {
   console.log("Server at http://localhost:" + PORT);
   console.log("Open in browser and use the prompt to test OpenAI → CL code.");
+  if (OPENAI_API_KEY) console.log("OPENAI_MODEL:", OPENAI_MODEL);
+  else console.warn("OPENAI_API_KEY not set; /api/generate will fail.");
   if (!OPENAI_API_KEY) console.warn("WARN: OPENAI_API_KEY not set in .env");
 });

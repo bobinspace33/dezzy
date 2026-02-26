@@ -49,18 +49,25 @@
             ++++++         ++++++  
                +++++++++++++++
 </pre></template>
-          <textarea
-            id="promptInput"
-            class="prompt-input"
-            placeholder=""
-            rows="8"
-          ></textarea>
+          <div class="prompt-box-wrap">
+            <textarea
+              id="promptInput"
+              class="prompt-input"
+              placeholder=""
+              rows="8"
+            ></textarea>
+            <button type="button" class="clear-prompt-btn" id="clearPromptBtn" title="Clear prompt" aria-label="Clear prompt">Clear</button>
+          </div>
           <div id="dezzyThinking" class="dezzy-thinking" aria-live="polite" aria-hidden="true" hidden>
             Dezzy is thinking<span class="dezzy-ellipsis">...</span>
           </div>
+          <div class="dezzy-reply-wrap" id="dezzyReplyWrap">
+            <button type="button" class="dezzy-reply-close" id="dezzyReplyCloseBtn" title="Close Dezzy output" aria-label="Close">×</button>
+            <div id="dezzyReply" class="dezzy-reply" aria-live="polite" aria-hidden="true" hidden></div>
+          </div>
           <div class="prompt-actions">
-            <button type="button" class="generate-btn" id="generateBtn">Generate CL code</button>
-            <button type="button" class="ask-dezzy-btn" id="askDezzyBtn">Ask Dezzy</button>
+            <button type="button" class="generate-btn" id="generateBtn">Generate CL code (⌘ 1)</button>
+            <button type="button" class="ask-dezzy-btn" id="askDezzyBtn">Ask Dezzy (⌘ 2)</button>
           </div>
         </section>
       </aside>
