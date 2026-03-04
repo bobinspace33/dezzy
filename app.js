@@ -26,6 +26,7 @@
   function formatDezzyResponse(text) {
     if (!text || !text.trim()) return "";
     var t = escapeHtml(text);
+    t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     var codeBlocks = [];
     t = t.replace(/`([^`]*)`/g, function (_, code) {
       var i = codeBlocks.length;
@@ -45,7 +46,8 @@
     for (var j = 0; j < codeBlocks.length; j++) {
       t = t.replace("\x00CODE" + j + "\x00", "<span class=\"dezzy-code\">" + codeBlocks[j] + "</span>");
     }
-    return t.replace(/\n/g, "<br>");
+    t = t.replace(/\n\n+/g, "\n\n");
+    return t.replace(/\n\n/g, "<br><br><br>").replace(/\n/g, "<br>");
   }
 
   function showDezzyReply(html, append) {
@@ -68,9 +70,9 @@
       return;
     }
     plainText = decodeHtmlEntities(plainText);
+    dezzyReply.removeAttribute("hidden");
+    dezzyReply.setAttribute("aria-hidden", "false");
     if (!append) {
-      dezzyReply.removeAttribute("hidden");
-      dezzyReply.setAttribute("aria-hidden", "false");
       dezzyReply.innerHTML = "";
     }
     var prefix = append ? dezzyReply.innerHTML + "<br><br>" : "";
@@ -112,7 +114,12 @@
   let slideIdCounter = 1;
   const slideCode = {};
   const slideSummary = {};
+  let lastFullGeneratedCode = "";
   let sendCodeToSlideMode = false;
+  var enhancementSuggestionsTimer = null;
+  var enhancementSuggestionsCountdownInterval = null;
+  var ENHANCEMENT_SUGGESTIONS_DELAY_MS = 40000;
+  var DEZZY_WAIT_MESSAGES = ["Giving Dezzy wait time...", "Dezzy is thinking...", "Dezzy is busy chasing light reflections...", "Dezzy is back on task..."];
   let draggedCard = null;
   let justDragged = false;
   let lastInsertIndex = null;
@@ -128,7 +135,7 @@
       return res.json();
     }).then(function (data) {
       if (data.error) throw new Error(data.error);
-      return (data.summary || "").trim().slice(0, 80);
+      return (data.summary || "").trim().slice(0, 50);
     });
   }
 
@@ -173,7 +180,7 @@
     }
     card.draggable = true;
     card.setAttribute("role", "listitem");
-    card.innerHTML = '<div class="slide-thumb">Slide ' + (index + 1) + "</div>";
+    card.innerHTML = '<div class="slide-thumb-wrap"><div class="slide-thumb">Slide ' + (index + 1) + "</div><button type=\"button\" class=\"slide-remove-btn\" title=\"Remove slide\" aria-label=\"Remove slide\">−</button></div>";
 
     attachDragListeners(card);
     card.addEventListener("click", onSlideClick);
@@ -232,19 +239,73 @@
         slideSummary[id] = "";
         updateSlideThumbLabel(card, idx);
       });
-      askDezzy("", slideCode, code).then(function (data) {
-        if (data && data.text) {
-          var suggestion = data.text.trim();
-          if (!suggestion) return;
-          if (promptTypingInProgress) {
-            pendingSuggestionQueue.push(suggestion);
-          } else if (promptInput && promptInput.value.trim().length > 0) {
-            appendDezzyToPrompt(suggestion, null);
-          } else {
-            typeIntoPrompt(suggestion, null, true);
-          }
+      if (!enhancementSuggestionsTimer) {
+        var waitStart = Date.now();
+        if (dezzyThinking) {
+          dezzyThinking.removeAttribute("hidden");
+          dezzyThinking.setAttribute("aria-hidden", "false");
+          dezzyThinking.innerHTML = DEZZY_WAIT_MESSAGES[0] + " (40s)";
         }
-      }).catch(function () {});
+        enhancementSuggestionsCountdownInterval = setInterval(function () {
+          var elapsed = Math.floor((Date.now() - waitStart) / 1000);
+          var secondsLeft = 40 - elapsed;
+          if (secondsLeft <= 0 && enhancementSuggestionsCountdownInterval) {
+            clearInterval(enhancementSuggestionsCountdownInterval);
+            enhancementSuggestionsCountdownInterval = null;
+            return;
+          }
+          if (dezzyThinking) {
+            var msgIndex = Math.min(Math.floor(elapsed / 8), DEZZY_WAIT_MESSAGES.length - 1);
+            dezzyThinking.innerHTML = DEZZY_WAIT_MESSAGES[msgIndex] + " (" + secondsLeft + "s)";
+          }
+        }, 1000);
+        enhancementSuggestionsTimer = setTimeout(function () {
+          enhancementSuggestionsTimer = null;
+          if (enhancementSuggestionsCountdownInterval) {
+            clearInterval(enhancementSuggestionsCountdownInterval);
+            enhancementSuggestionsCountdownInterval = null;
+          }
+          var body = { message: "", slideCodeContext: {}, enhancementSuggestions: true };
+          var ctx = {};
+          for (var k in slideCode) { if (slideCode.hasOwnProperty(k) && slideCode[k]) ctx[k] = slideCode[k]; }
+          body.slideCodeContext = ctx;
+          if (Object.keys(ctx).length === 0) {
+            showDezzyThinking(false);
+            return;
+          }
+          if (dezzyThinking) dezzyThinking.innerHTML = "Dezzy is thinking<span class=\"dezzy-ellipsis\">...</span>";
+          showDezzyThinking(true);
+          fetch(window.location.origin + "/api/dezzy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(function (r) { return r.json(); }).then(function (data) {
+            showDezzyThinking(false);
+            if (data && data.error) {
+              if (dezzyReply) {
+                dezzyReply.removeAttribute("hidden");
+                dezzyReply.setAttribute("aria-hidden", "false");
+                var errHtml = formatDezzyResponse("(Dezzy) Could not load suggestions: " + data.error);
+                dezzyReply.innerHTML = (dezzyReply.innerHTML ? dezzyReply.innerHTML + "<br><br>" : "") + errHtml;
+              }
+              return;
+            }
+            if (data && data.text && data.text.trim()) {
+              var suggestion = data.text.trim();
+              var fullText = "Suggested enhancements (based on your slides):\n\n" + suggestion;
+              typeDezzyReply(fullText, true, function () {});
+            }
+          }).catch(function (err) {
+            showDezzyThinking(false);
+            if (dezzyReply) {
+              dezzyReply.removeAttribute("hidden");
+              dezzyReply.setAttribute("aria-hidden", "false");
+              var errHtml = formatDezzyResponse("(Dezzy) Request failed: " + (err.message || "network error"));
+              dezzyReply.innerHTML = (dezzyReply.innerHTML ? dezzyReply.innerHTML + "<br><br>" : "") + errHtml;
+            }
+          });
+        }, ENHANCEMENT_SUGGESTIONS_DELAY_MS);
+      }
       return;
     }
 
@@ -424,6 +485,7 @@
 
     if (codeContent) setCodeOutput(codeOutput, false);
     if (promptInput) promptInput.value = prompt;
+    lastFullGeneratedCode = codeOutput || "";
   }
 
   function refreshOpenProjectList() {
@@ -466,7 +528,58 @@
     });
   }
 
+  function deleteProject(name) {
+    if (!name) return;
+    localStorage.removeItem(PROJECT_PREFIX + name);
+    var names = getProjectNames().filter(function (n) { return n !== name; });
+    localStorage.setItem(PROJECT_NAMES_KEY, JSON.stringify(names));
+    refreshOpenProjectList();
+  }
+
+  var deleteProjectBtn = document.getElementById("deleteProjectBtn");
+  if (deleteProjectBtn) {
+    deleteProjectBtn.addEventListener("click", function () {
+      var name = openProjectSelect && openProjectSelect.value;
+      if (!name) {
+        name = prompt("Enter the exact project name to delete:");
+      }
+      if (name && getProjectNames().indexOf(name) !== -1) {
+        if (confirm("Delete project \"" + name + "\"? This cannot be undone.")) {
+          deleteProject(name);
+        }
+      } else if (name) {
+        alert("No saved project named \"" + name + "\".");
+      }
+    });
+  }
+
+  var restoreFullCodeBtn = document.getElementById("restoreFullCodeBtn");
+  if (restoreFullCodeBtn) {
+    restoreFullCodeBtn.addEventListener("click", function () {
+      if (lastFullGeneratedCode) {
+        setCodeOutput(lastFullGeneratedCode, false);
+      }
+    });
+  }
+
   addSlideBtn.addEventListener("click", addSlide);
+
+  slidesTrack.addEventListener("click", function (e) {
+    var removeBtn = e.target && e.target.closest(".slide-remove-btn");
+    if (!removeBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var card = removeBtn.closest(".slide-card");
+    if (!card) return;
+    var cards = getCards();
+    if (cards.length <= 1) return;
+    var id = card.dataset.slideId;
+    card.remove();
+    delete slideCode[id];
+    delete slideSummary[id];
+    reindexSlides();
+    slideCount = getCards().length;
+  });
 
   sendCodeToSlideBtn.addEventListener("click", function () {
     sendCodeToSlideMode = !sendCodeToSlideMode;
@@ -661,6 +774,7 @@
   function showDezzyThinking(show) {
     if (!dezzyThinking) return;
     if (show) {
+      dezzyThinking.innerHTML = "Dezzy is thinking<span class=\"dezzy-ellipsis\">...</span>";
       dezzyThinking.removeAttribute("hidden");
       dezzyThinking.setAttribute("aria-hidden", "false");
     } else {
@@ -717,7 +831,8 @@
       }
       const code = data.code != null ? data.code : "";
       const errHint = data.error ? "\n# " + data.error : "";
-      setCodeOutput(code || "# No code returned." + errHint, true);
+      lastFullGeneratedCode = code || "# No code returned." + errHint;
+      setCodeOutput(lastFullGeneratedCode, true);
     } catch (err) {
       setCodeOutput("# Request failed: " + err.message + "\n# Make sure the server is running (npm run start).");
     } finally {

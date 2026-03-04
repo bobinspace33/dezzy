@@ -23,11 +23,12 @@
             <select id="openProjectSelect" title="Open a saved project">
               <option value="">Open project…</option>
             </select>
+            <button type="button" id="deleteProjectBtn" title="Delete the selected project">Delete project</button>
           </div>
           <div class="slides-row">
             <div class="slides-track" id="slidesTrack" role="list">
               <article class="slide-card" data-slide-index="0" data-slide-id="slide-0" draggable="true" role="listitem">
-                <div class="slide-thumb">Slide 1</div>
+                <div class="slide-thumb-wrap"><div class="slide-thumb">Slide 1</div><button type="button" class="slide-remove-btn" title="Remove slide" aria-label="Remove slide">−</button></div>
               </article>
             </div>
             <button type="button" class="add-slide" id="addSlide" title="Add slide" aria-label="Add slide">+</button>
@@ -74,7 +75,10 @@
 
       <section class="right-panel">
         <h2>Code output</h2>
-        <button type="button" class="send-code-btn" id="sendCodeToSlideBtn" title="Click this, then click a slide. Sends selected code only, or all code if nothing is selected.">Send Code to Slide</button>
+        <div class="code-actions">
+          <button type="button" class="send-code-btn" id="sendCodeToSlideBtn" title="Click this, then click a slide. Sends selected code only, or all code if nothing is selected.">Send Code to Slide</button>
+          <button type="button" class="restore-full-code-btn" id="restoreFullCodeBtn" title="Restore the last full generated code (after viewing a slide's code)">Restore full code</button>
+        </div>
         <div class="code-output-wrap">
           <div class="code-loading" id="codeLoading" aria-hidden="true">
             <div class="loading-wheel" aria-hidden="true"></div>

@@ -233,12 +233,12 @@ const server = http.createServer(async (req, res) => {
 Prefer the "Working code examples" and any "Forum example snippets" in the documentation below — match their structure, syntax, and component names (input1, note1, graph1, exp1, etc.) unless the user asks otherwise.
 
 STRICT RULES — only use features that exist in the CL documentation below:
-- Every top-level line in CL must be either a variable assignment (name = expression) or a sink assignment (sinkName: value). Do not output bare expressions or standalone when(...) or function calls at top level — this causes "toplevel declarations must be variable or sink assignments" errors. Use when/otherwise only on the right-hand side of = or :.
+- Every top-level line in CL must be either a variable assignment (name = expression) or a sink assignment (sinkName: value). Do not output bare expressions or standalone when(...) or function calls at top level — this causes "toplevel declarations must be variable or sink assignments" errors. Use when/otherwise only on the right-hand side of = or :. For when+otherwise use space-separated form with a space before otherwise (e.g. sink: when condition value otherwise default), or when(cond, valueIfTrue, valueIfFalse). Do not write )otherwise with no space — it causes "Expected _=>_" syntax error.
 - Use ONLY sinks, sources, functions, component types, and syntax that appear in the documentation provided. Do not invent or assume any APIs. If a feature is not documented below, do not use it.
 - For slide CL and component CL, only reference documented components (e.g. note, graph, Math Response [for math/expressions], action button, multiple choice, table, etc.) and their documented sinks/sources. In slide CL, reference components by name only: use table1, note1, graph1, etc., not slide1.table1 or screen1.note1 (no slide/screen prefix). The math/expression component is called Math Response (formerly Math Input). There is no separate slider component — use the graph component for sliders (e.g. add a Graph, create a variable like a in the graph with its slider; reference via graph1.number("a")). Do not use numberList — it is no longer a valid sink. To set a list variable in the graph (e.g. for aggregate), use the expression sink with list literal latex: L = aggregate(...), listLatex = \`[\${L.reduce("", (acc, cur) => when(acc = "", \`\${cur}\`, \`\${acc},\${cur}\`))}]\` (use template literals only, no +), then expression("a_{class}"): listLatex.
 - Do not use deprecated functions; use the replacements listed in the Deprecated Functions section (e.g. sketch.strokeCount not sketchStrokeCount, line.angle not angleOfLine). Use randomGenerator() with r.int() or r.float() for random numbers — do not use randomInteger. For mean of a list, do not use mean() — use list.reduce(0, (acc, cur) => numericValue(...)) for sum, length(list) for count, then numericValue with \\frac{sum}{n} for the mean. For table columns use table1.columnNumericValues(columnIndex), not table.column(""). Do not use zip — CL has no zip; pair two lists by index using range(length(L)).map((i) => ...) with L.elementAt(i) and M.elementAt(i) (1-based). Do not use countBy — CL has no countBy; use reduce or filter+length to count by value. In arrow functions use a space after the comma: (el, i) => not (el,i) => to avoid "expected =>" syntax errors. list.join(otherList) only concatenates two lists; it does not join list elements into a string with a separator — use reduce to build a string from a list of strings (e.g. list.reduce("", (acc, cur) => when(acc = "", cur, acc + ", " + cur))).
 - In numericValue() strings (LaTeX): do not use raw / for division — use \\frac{numerator}{denominator} or \\div. For subtraction use - with parentheses around operands when needed, e.g. numericValue(\`(\${a})-(\${b})\`).
-- Arithmetic with variables: CL does not support infix expressions like target = 500 + 100*randNum. Use numericValue with a template literal (e.g. target = numericValue(\`500+100*\${randNum}\`)) or simpleFunction (e.g. f = simpleFunction("500+100*x", "x") then target = f.evaluateAt(randNum)).
+- Arithmetic with variables: CL does not support infix expressions like target = 500 + 100*randNum or conditions like a - b > 0. The minus (and +, *) in script cause syntax errors. Use numericValue with a template literal for the arithmetic (e.g. target = numericValue(\`500+100*\${randNum}\`), or for subtraction in a condition: showObjects = numericValue(\`(\${timerSeconds})-(\${timer1.secondsElapsed})\`) > 0) or simpleFunction for multi-use expressions.
 - If the user asks for something that has no documented CL feature, use the closest documented alternative and add a brief comment (#) explaining the limitation.
 
 Where code goes — output instructions in slide order with these exact headers (so the UI can show placement in orange):
@@ -309,7 +309,7 @@ ${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) 
     return;
   }
 
-  // POST /api/summarize — short (max 8 word) summary of CL code for slide thumbnail
+  // POST /api/summarize — short (max 5 word) summary of CL code for slide thumbnail
   if (req.method === "POST" && req.url === "/api/summarize") {
     if (!OPENAI_API_KEY) {
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -333,7 +333,7 @@ ${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) 
       return;
     }
 
-    const systemPrompt = "You summarize Desmos Activity Builder Computation Layer (CL) code in very short phrases for a slide thumbnail. Reply with only the phrase: at most 8 words, no quotes, no period. Describe what the code does (e.g. 'Note shows feedback when input submitted', 'Hide button until graph slider value is 5'). There is no separate slider component; sliders use the graph component.";
+    const systemPrompt = "You summarize Desmos Activity Builder Computation Layer (CL) code in very short phrases for a slide thumbnail. Reply with only the phrase: at most 5 words, no quotes, no period. Describe what the code does (e.g. 'Note shows feedback when submitted', 'Hide until slider is 5'). There is no separate slider component; sliders use the graph component.";
 
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -362,7 +362,7 @@ ${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) 
       }
 
       const raw = (data.choices?.[0]?.message?.content || "").trim();
-      const summary = raw.replace(/^["']|["']$/g, "").slice(0, 80);
+      const summary = raw.replace(/^["']|["']$/g, "").slice(0, 50);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ summary }));
     } catch (err) {
@@ -393,6 +393,7 @@ ${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) 
     const slideCodeContext = body.slideCodeContext && typeof body.slideCodeContext === "object" ? body.slideCodeContext : {};
     const suggestionRequest = body.suggestionRequest === true;
     const codeJustStored = body.codeJustStored != null ? String(body.codeJustStored) : "";
+    const enhancementSuggestions = body.enhancementSuggestions === true;
 
     const clDocs = getClDocsContext();
     const dezzyExtra = getDezzyExtraContext();
@@ -419,6 +420,10 @@ ${clExamplesContext ? "\n\n--- FORUM / WORKING EXAMPLES (prefer these patterns) 
     let userText = message;
     if (suggestionRequest && codeJustStored) {
       userText = "The user just copied this code to a new slide:\n\n" + codeJustStored.slice(0, 2000) + "\n\nGive 1-2 short ideas for: (1) how to improve or extend this activity, (2) how to make it more interactive (e.g. with CL, graph, input, or feedback), and/or (3) how to include a higher-order or higher DOK (Depth of Knowledge) task—e.g. reasoning, explaining, comparing, or creating. Reply in plain text only, clear English, 2-4 sentences. No placeholders or scrambled text.";
+    }
+    if (enhancementSuggestions && Object.keys(slideCodeContext).length > 0) {
+      const codeSummary = JSON.stringify(slideCodeContext).slice(0, 6000);
+      userText = "The user has been building an activity and has copied CL code to one or more slides. Here is the code they have per slide (slideId -> code):\n\n" + codeSummary + "\n\nBased on this activity, suggest 2–4 short ideas to: (1) enhance interactivity or engagement (e.g. feedback, captures, graphs, multiple representations), (2) ground the activity in Amplify Desmos Math principles or philosophy (e.g. curiosity, multiple approaches, productive struggle), and (3) if you can infer or assume a grade level, tailor one suggestion to that level. Reply in plain text only, clear English, concise bullet points or short paragraphs. Do not repeat the code; only give actionable suggestions.";
     }
     const userMessageForHistory = userText || "Say hello and remind me you can help with CL.";
 

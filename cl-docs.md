@@ -50,8 +50,10 @@ You can hard-code values or use information from **other components**. To use an
 
 ### Conditional statements: `when` / `otherwise`
 
-- `when(condition, valueIfTrue)` and `otherwise(defaultValue)`.
-- Like if/else: you can have multiple `when` clauses; one `otherwise` at the end.
+- **Two valid forms:**  
+  - **Space-separated (preferred for when + otherwise):** `when condition value otherwise default`. Use a **space** before `otherwise`. Do **not** write `when(condition, value)otherwise default` — the `)otherwise` with no space causes a syntax error ("Expected _=>_"). Example: `timer: when timer1.secondsElapsed > 10 1 otherwise 0`.  
+  - **Three-argument form (simple if/else):** `when(condition, valueIfTrue, valueIfFalse)` — e.g. `timer: when(timer1.secondsElapsed > 10, 1, 0)`.
+- For multiple conditions: multiple `when` clauses followed by one `otherwise` at the end, using the space-separated form: `when cond1 val1 when cond2 val2 otherwise default`.
 - Example: show different note text when an input is submitted vs not.
 
 ### Same-component reference: `this`
@@ -121,6 +123,9 @@ So instead of `target = 500 + 100 * randNum`, write either
 `target = numericValue(\`500+100*${randNum}\`)`  
 or  
 `f = simpleFunction("500+100*x", "x")` and `target = f.evaluateAt(randNum)`.
+
+**Subtraction in conditions (e.g. `a - b > 0`):** The minus sign in expressions like `showObjects = timerSeconds - timer1.secondsElapsed > 0` causes a syntax error because CL does not evaluate infix arithmetic. Put the subtraction inside `numericValue` and then compare:  
+`showObjects = numericValue(\`(${timerSeconds})-(${timer1.secondsElapsed})\`) > 0`
 
 ---
 
